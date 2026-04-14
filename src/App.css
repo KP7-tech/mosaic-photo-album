@@ -1,0 +1,121 @@
+/* src/App.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+:root {
+  --bg-dark: #0a0a0c;
+  --bg-panel: rgba(255, 255, 255, 0.05);
+  --accent: #FF5733;
+  --accent-glow: rgba(255, 87, 51, 0.5);
+  --text-main: #ffffff;
+  --text-muted: #888888;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  overflow-x: hidden;
+}
+
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  background: rgba(10, 10, 12, 0.8);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+h1 {
+  font-weight: 800;
+  margin: 0;
+  font-size: 24px;
+  background: linear-gradient(135deg, #FF5733, #FFC300);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 20px var(--accent-glow);
+}
+
+.tabs {
+  display: flex;
+  gap: 12px;
+}
+
+.tabs button {
+  background: var(--bg-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  padding: 10px 24px;
+  border-radius: 30px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.tabs button:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tabs button.active {
+  background: var(--text-main);
+  color: var(--bg-dark);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+}
+
+.main-content {
+  flex: 1;
+  padding: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mosaic-view {
+  text-align: center;
+  animation: fadeIn 0.8s ease-out;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  margin-bottom: 30px;
+  font-size: 16px;
+}
+
+.canvas-wrapper {
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05); /* Premium glowing border */
+  background: #1a1a1a;
+  transition: transform 0.4s ease;
+}
+
+.canvas-wrapper:hover {
+  transform: scale(1.02);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Glassmorphism for Color Hunter Panel is defined in inline styles in ColorHunter.jsx, 
+   but we enhance it here if needed */
+.color-hunter-container {
+  backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
