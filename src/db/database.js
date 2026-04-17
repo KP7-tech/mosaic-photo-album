@@ -9,9 +9,23 @@ db.version(1).stores({
   mosaicPieces: 'id, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId'
 });
 
-// Fetch only fully processed photos for the KD-Tree index
-export async function getAllPhotosForIndex() {
-  return await db.photos.where('status').equals('processed').toArray();
+db.version(2).stores({
+  photos: '++id, status, L, a, b, url, timestamp, useCount, *groups',
+  mosaicPieces: 'id, artworkId, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId',
+  groups: 'id, name, isDefault, timestamp',
+  artworks: '++id, name, status, width, height, piecesCount, thumbDataUrl, targetGroupId, timestamp'
+}).upgrade(tx => {
+  return tx.photos.toCollection().modify(photo => {
+    photo.groups = ['all'];
+  });
+});
+
+// Fetch only fully processed photos for the KD-Tree index, optionally filtered by group
+export async function getAllPhotosForIndex(groupId = 'all') {
+  if (groupId === 'all') {
+    return await db.photos.where('status').equals('processed').toArray();
+  }
+  return await db.photos.where('groups').equals(groupId).and(p => p.status === 'processed').toArray();
 }
 
 // Fetch all pending photos for background processing
@@ -55,12 +69,15 @@ export async function addPhoto(lab, dataUrl) {
 }
 
 // New async raw photo addition for lazy loading
-export async function addRawPhoto(file) {
+export async function addRawPhoto(file, targetGroups = ['all']) {
+  // Ensure 'all' is always present
+  const groupsToAssign = Array.from(new Set(['all', ...targetGroups]));
   return await db.photos.add({
     file,           // store the original File or Blob
     status: 'pending',
     timestamp: Date.now(),
-    useCount: 0
+    useCount: 0,
+    groups: groupsToAssign
   });
 }
 
@@ -77,4 +94,40 @@ export async function updatePhotoData(id, lab, dataUrl) {
 
 export async function clearPhotos() {
   return await db.photos.clear();
+}
+
+// Group operations
+export async function initDefaultGroup() {
+  const existing = await db.groups.get('all');
+  if (!existing) {
+    await db.groups.put({ id: 'all', name: '全部素材', isDefault: true, timestamp: Date.now() });
+  }
+}
+export async function getGroups() {
+  return await db.groups.orderBy('timestamp').toArray();
+}
+export async function addGroup(name) {
+  const id = 'group_' + Date.now();
+  await db.groups.add({ id, name, isDefault: false, timestamp: Date.now() });
+  return id;
+}
+export async function renameGroup(id, newName) {
+  if(id === 'all') return;
+  return await db.groups.update(id, { name: newName });
+}
+export async function deleteGroup(id) {
+  if(id === 'all') return;
+  // First, remove this group from all photos
+  await db.photos.where('groups').equals(id).modify(photo => {
+    photo.groups = photo.groups.filter(g => g !== id);
+  });
+  // Then delete group
+  return await db.groups.delete(id);
+}
+
+// Photo Group Assignment
+export async function updatePhotoGroups(photoId, newGroups) {
+  // ensures 'all' is always in
+  const groupsToAssign = Array.from(new Set(['all', ...newGroups]));
+  return await db.photos.update(photoId, { groups: groupsToAssign });
 }

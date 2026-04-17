@@ -2,21 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import ColorHunter from './components/ColorHunter';
 import MosaicCanvas from './components/MosaicCanvas';
+import LibraryView from './components/LibraryView';
+import ArtworksGallery from './components/ArtworksGallery';
 import { KDTree } from './core/kdTree';
-import { readImage, sliceBlueprint } from './core/imageProcessor';
-import { db, addRawPhoto, updatePhotoData, getPendingPhotos, clearPhotos, bulkIncrementUsage } from './db/database';
+import { readImage, sliceBlueprint, createThumb } from './core/imageProcessor';
+import { db, getPendingPhotos, updatePhotoData, initDefaultGroup, getAllPhotosForIndex, bulkIncrementUsage } from './db/database';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('setup'); // 'setup' | 'mosaic' | 'hunter'
+  const [activeTab, setActiveTab] = useState('library'); // 'library' | 'gallery' | 'mosaic' | 'hunter'
   const [pieces, setPieces] = useState([]);
+  const [currentArtworkId, setCurrentArtworkId] = useState(null);
   const [targetPiece, setTargetPiece] = useState(null);
   const [canvasSize, setCanvasSize] = useState({ w: 300, h: 300 });
   const [isProcessing, setIsProcessing] = useState(false);
   const [backgroundProgress, setBackgroundProgress] = useState(null);
   
-  const albumInputRef = useRef(null);
-  const folderInputRef = useRef(null);
-  const blueprintInputRef = useRef(null);
   const workerRef = useRef(null);
 
   const startBackgroundProcessing = async () => {
@@ -46,6 +46,7 @@ function App() {
   };
 
   useEffect(() => {
+    initDefaultGroup();
     startBackgroundProcessing();
     return () => {
       if(workerRef.current) {
@@ -54,37 +55,15 @@ function App() {
     }
   }, []);
 
-  const handleAlbumUpload = async (e) => {
-    const files = e.target.files;
-    if(!files.length) return;
-    setIsProcessing(true);
-    
-    // Batch processing
-    const fileArray = Array.from(files);
-    const chunkSize = 50; // Faster bulk save
-    for(let i=0; i<fileArray.length; i+=chunkSize) {
-        const chunk = fileArray.slice(i, i+chunkSize);
-        await Promise.all(chunk.map(file => addRawPhoto(file)));
-    }
-    
-    setIsProcessing(false);
-    alert(`素材庫已建立，正在優化色彩匹配...`);
-    
-    startBackgroundProcessing();
-  };
-
-  const handleBlueprintUpload = async (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
+  const handleNewArtwork = async (file, targetGroupId) => {
     setIsProcessing(true);
     
     // 1. Process blueprint into pieces
     const img = await readImage(file);
     const { pieces: newPieces, width, height } = sliceBlueprint(img, 30, 30); // 30x30 grid
-    setCanvasSize({ w: width, h: height });
-
-    // 2. Fetch all fully processed photos from album for index
-    const photos = await db.photos.where('status').equals('processed').toArray();
+    
+    // 2. Fetch fully processed photos from targeted group
+    const photos = await getAllPhotosForIndex(targetGroupId);
     
     // 3. Build KDTree if we have photos
     let tree = null;
@@ -119,8 +98,50 @@ function App() {
         await bulkIncrementUsage(usageCounts);
     }
 
+    // 5. Create artwork record
+    const thumbDataUrl = await createThumb(file);
+    const artworkName = file.name || `專案 ${new Date().toLocaleDateString()}`;
+    const missingCount = newPieces.filter(p => p.state === 'missing').length;
+    const isCompleted = missingCount === 0;
+
+    const artworkId = await db.artworks.add({
+      name: artworkName,
+      status: isCompleted ? 'completed' : 'in-progress',
+      width,
+      height,
+      piecesCount: newPieces.length,
+      thumbDataUrl,
+      targetGroupId,
+      timestamp: Date.now()
+    });
+
+    const dbPieces = newPieces.map(p => {
+        const uniqueId = `${artworkId}_${p.id}`;
+        p.id = uniqueId; // update the live state too
+        return {
+          ...p,
+          artworkId
+        }
+    });
+    await db.mosaicPieces.bulkAdd(dbPieces);
+
     setPieces(newPieces);
+    setCanvasSize({ w: width, h: height });
+    setCurrentArtworkId(artworkId);
     setActiveTab('mosaic');
+    setIsProcessing(false);
+  };
+
+  const handleOpenArtwork = async (id) => {
+    setIsProcessing(true);
+    const artwork = await db.artworks.get(id);
+    if(artwork) {
+      const savedPieces = await db.mosaicPieces.where('artworkId').equals(id).toArray();
+      setPieces(savedPieces);
+      setCanvasSize({ w: artwork.width, h: artwork.height });
+      setCurrentArtworkId(id);
+      setActiveTab('mosaic');
+    }
     setIsProcessing(false);
   };
 
@@ -132,17 +153,28 @@ function App() {
   };
 
   const handleCapture = async (capturedData) => {
-    // compatibility with old LAB purely return or new capture return
     const lab = capturedData.lab || capturedData;
     const dataUrl = capturedData.dataUrl || null;
+    let newPhotoId = null;
     
     if(dataUrl) {
-      await addPhoto(lab, dataUrl);
+      // Add to standard photos and explicitly set to target group to ensure it stays in the pool
+      const artwork = await db.artworks.get(currentArtworkId);
+      const groups = artwork && artwork.targetGroupId !== 'all' ? ['all', artwork.targetGroupId] : ['all'];
+      
+      newPhotoId = await db.photos.add({
+        status: 'processed',
+        L: lab[0], a: lab[1], b: lab[2],
+        url: dataUrl,
+        timestamp: Date.now(),
+        useCount: 1,
+        groups: groups
+      });
     }
     
     alert('成功提取現實色彩！填入拼圖！');
     
-    setPieces(prev => prev.map(p => {
+    const newPieces = pieces.map(p => {
       if(p.id === targetPiece.id) {
         return {
           ...p,
@@ -152,8 +184,24 @@ function App() {
         };
       }
       return p;
-    }));
-    
+    });
+
+    setPieces(newPieces);
+
+    // Update the piece in db
+    await db.mosaicPieces.update(targetPiece.id, {
+       state: 'filled',
+       assignedPhotoId: newPhotoId,
+       targetRGB: [128,128,128], // can omit strictly
+       assignedPhotoUrl: dataUrl
+    });
+
+    // Check if fully completed
+    const stillMissing = newPieces.filter(p => p.state === 'missing').length;
+    if(stillMissing === 0) {
+      await db.artworks.update(currentArtworkId, { status: 'completed' });
+    }
+
     setTargetPiece(null);
     setActiveTab('mosaic');
   };
@@ -169,18 +217,27 @@ function App() {
         )}
         <div className="tabs">
           <button 
-            className={activeTab === 'setup' ? 'active' : ''} 
-            onClick={() => setActiveTab('setup')}
+            className={activeTab === 'library' ? 'active' : ''} 
+            onClick={() => setActiveTab('library')}
           >
-            設定區
+            素材庫
           </button>
           <button 
-            className={(activeTab === 'mosaic' && !isProcessing) ? 'active' : ''} 
-            onClick={() => { if(pieces.length > 0) setActiveTab('mosaic') }}
-            disabled={pieces.length === 0}
+            className={activeTab === 'gallery' ? 'active' : ''} 
+            onClick={() => setActiveTab('gallery')}
           >
-            我的藝術品
+            藝術畫廊
           </button>
+          
+          {currentArtworkId && (
+            <button 
+              className={(activeTab === 'mosaic' && !isProcessing) ? 'active' : ''} 
+              onClick={() => setActiveTab('mosaic')}
+            >
+              目前畫布
+            </button>
+          )}
+
           <button 
             className={activeTab === 'hunter' ? 'active' : ''} 
             onClick={() => { if(targetPiece) setActiveTab('hunter') }}
@@ -194,57 +251,15 @@ function App() {
       <main className="main-content">
         {isProcessing && <div style={{color: 'white', padding: '20px'}}>處理中，請稍候...</div>}
 
-        {!isProcessing && activeTab === 'setup' && (
-          <div className="setup-view" style={{ padding: '20px', color: 'white', textAlign: 'left' }}>
-            <h2>1. 建立素材庫 (掃描圖片)</h2>
-            <p style={{marginBottom: '16px'}}>請選擇你本機的圖片作為素材庫來源：</p>
-            
-            <input 
-              type="file" 
-              multiple 
-              accept="image/*" 
-              onChange={handleAlbumUpload} 
-              ref={albumInputRef}
-              style={{ display: 'none' }} 
-            />
-            <input 
-              type="file" 
-              webkitdirectory="" 
-              directory="" 
-              onChange={handleAlbumUpload} 
-              ref={folderInputRef}
-              style={{ display: 'none' }} 
-            />
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '15px' }}>
-              <button className="btn-primary" onClick={() => albumInputRef.current.click()}>
-                選擇圖片檔案
-              </button>
-              <button className="btn-secondary" onClick={async () => { 
-                if(window.confirm('確定要清空現有素材庫嗎？此操作無法復原。')) {
-                  await clearPhotos(); 
-                  alert('素材庫已清空'); 
-                }
-              }}>
-                清空素材庫
-              </button>
-            </div>
+        {!isProcessing && activeTab === 'library' && (
+          <LibraryView onProcessingBackground={startBackgroundProcessing} />
+        )}
 
-            <hr style={{margin: '40px 0', borderColor: 'rgba(255,255,255,0.1)'}} />
-
-            <h2>2. 選擇目標畫布 (Blueprint)</h2>
-            <p style={{marginBottom: '16px'}}>請選擇一張你想拼成的圖片：</p>
-            
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={handleBlueprintUpload} 
-              ref={blueprintInputRef}
-              style={{ display: 'none' }} 
-            />
-            <button className="btn-primary" onClick={() => blueprintInputRef.current.click()}>
-              選擇畫布檔案
-            </button>
-          </div>
+        {!isProcessing && activeTab === 'gallery' && (
+          <ArtworksGallery 
+            onNewArtwork={handleNewArtwork} 
+            onOpenArtwork={handleOpenArtwork} 
+          />
         )}
 
         {!isProcessing && activeTab === 'mosaic' && (

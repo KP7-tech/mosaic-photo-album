@@ -94,3 +94,23 @@ export function sliceBlueprint(img, cols = 20, rows = 20) {
   
   return { pieces, width: img.width, height: img.height };
 }
+
+export async function createThumb(file, maxSize = 200) {
+  const img = await readImage(file);
+  const canvas = document.createElement('canvas');
+  let w = img.width;
+  let h = img.height;
+  if(w > maxSize || h > maxSize) {
+    const ratio = Math.min(maxSize / w, maxSize / h);
+    w = Math.floor(w * ratio);
+    h = Math.floor(h * ratio);
+  }
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  // White background in case of transparency
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', 0.6);
+}
