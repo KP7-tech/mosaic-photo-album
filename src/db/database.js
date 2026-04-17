@@ -1,19 +1,12 @@
 // src/db/database.js
 import Dexie from 'dexie';
 
-export const db = new Dexie('MosaicPhotoAlbum');
+export const db = new Dexie('MosaicArchive');
 
 // Schema definitions
 db.version(1).stores({
-  photos: 'id, L, a, b, url, timestamp, useCount',
-  mosaicPieces: 'id, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId'
-});
-
-db.version(2).stores({
   photos: '++id, status, L, a, b, url, timestamp, useCount',
-}).upgrade(tx => {
-  // Clear old version data because the id format changed from simple string/uuid(?) to auto-increment
-  return tx.photos.clear();
+  mosaicPieces: 'id, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId'
 });
 
 // Fetch only fully processed photos for the KD-Tree index

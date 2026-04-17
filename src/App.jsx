@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import ColorHunter from './components/ColorHunter';
 import MosaicCanvas from './components/MosaicCanvas';
 import { KDTree } from './core/kdTree';
 import { readImage, sliceBlueprint } from './core/imageProcessor';
 import { db, addRawPhoto, updatePhotoData, getPendingPhotos, clearPhotos, incrementPhotoUsage } from './db/database';
-import { useRef, useEffect, useState } from 'react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('setup'); // 'setup' | 'mosaic' | 'hunter'
