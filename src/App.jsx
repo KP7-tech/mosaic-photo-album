@@ -17,13 +17,21 @@ function App() {
     const files = e.target.files;
     if(!files.length) return;
     setIsProcessing(true);
-    for(let i=0; i<files.length; i++) {
-        const img = await readImage(files[i]);
-        const { lab, dataUrl } = extractDominantColor(img);
-        if(dataUrl) {
-            await addPhoto(lab, dataUrl);
-        }
+    
+    // Batch processing
+    const fileArray = Array.from(files);
+    const chunkSize = 10;
+    for(let i=0; i<fileArray.length; i+=chunkSize) {
+        const chunk = fileArray.slice(i, i+chunkSize);
+        await Promise.all(chunk.map(async file => {
+            const img = await readImage(file);
+            const { lab, dataUrl } = extractDominantColor(img);
+            if(dataUrl) {
+                await addPhoto(lab, dataUrl);
+            }
+        }));
     }
+    
     setIsProcessing(false);
     alert(`已匯入 ${files.length} 張照片至相簿`);
   };
@@ -35,7 +43,7 @@ function App() {
     
     // 1. Process blueprint into pieces
     const img = await readImage(file);
-    const { pieces: newPieces, width, height } = sliceBlueprint(img, 20, 20); // 20x20 grid
+    const { pieces: newPieces, width, height } = sliceBlueprint(img, 30, 30); // 30x30 grid
     setCanvasSize({ w: width, h: height });
 
     // 2. Fetch all photos from album
@@ -155,7 +163,7 @@ function App() {
         {!isProcessing && activeTab === 'mosaic' && (
           <div className="mosaic-view">
             <p className="subtitle">請點擊畫布上的缺口塊 (Missing Pieces) 進行尋色</p>
-            <div className="canvas-wrapper" style={{ position: 'relative', width: canvasSize.w, height: canvasSize.h, margin: '0 auto', maxWidth: '100%' }}>
+            <div className="canvas-wrapper" style={{ position: 'relative', width: canvasSize.w, height: canvasSize.h, margin: '0 auto' }}>
               <MosaicCanvas pieces={pieces} width={canvasSize.w} height={canvasSize.h} />
               
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>

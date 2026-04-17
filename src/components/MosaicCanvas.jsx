@@ -152,7 +152,6 @@ export default function MosaicCanvas({ pieces, width, height }) {
         borderRadius: '16px',
         boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
         width: '100%',
-        maxWidth: `${width}px`,
         height: 'auto'
       }}
     />
