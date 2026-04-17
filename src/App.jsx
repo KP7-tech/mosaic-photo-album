@@ -3,9 +3,9 @@ import './App.css';
 import ColorHunter from './components/ColorHunter';
 import MosaicCanvas from './components/MosaicCanvas';
 import { KDTree } from './core/kdTree';
-import { readImage, extractDominantColor, sliceBlueprint } from './core/imageProcessor';
-import { db, addPhoto, clearPhotos, incrementPhotoUsage } from './db/database';
-import { useRef } from 'react';
+import { readImage, sliceBlueprint } from './core/imageProcessor';
+import { db, addRawPhoto, updatePhotoData, getPendingPhotos, clearPhotos, incrementPhotoUsage } from './db/database';
+import { useRef, useEffect, useState } from 'react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('setup'); // 'setup' | 'mosaic' | 'hunter'
@@ -13,9 +13,46 @@ function App() {
   const [targetPiece, setTargetPiece] = useState(null);
   const [canvasSize, setCanvasSize] = useState({ w: 300, h: 300 });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [backgroundProgress, setBackgroundProgress] = useState(null);
   
   const albumInputRef = useRef(null);
   const blueprintInputRef = useRef(null);
+  const workerRef = useRef(null);
+
+  const startBackgroundProcessing = async () => {
+    const pendingPhotos = await getPendingPhotos();
+    if(pendingPhotos.length === 0) {
+      setBackgroundProgress(null);
+      return;
+    }
+    
+    setBackgroundProgress({ total: pendingPhotos.length, completed: 0 });
+    
+    if(!workerRef.current) {
+      workerRef.current = new Worker(new URL('./core/imageWorker.js', import.meta.url), { type: 'module' });
+      workerRef.current.onmessage = async (e) => {
+        const { type, payload } = e.data;
+        if(type === 'FILE_PROCESSED') {
+             await updatePhotoData(payload.id, payload.lab, payload.dataUrl);
+             setBackgroundProgress(prev => prev ? { ...prev, completed: prev.completed + 1 } : null);
+        } else if (type === 'ALL_PROCESSED') {
+             setBackgroundProgress(null);
+        }
+      };
+    }
+    
+    const payloadFiles = pendingPhotos.map(p => ({ id: p.id, file: p.file }));
+    workerRef.current.postMessage({ type: 'PROCESS_FILES', payload: { files: payloadFiles } });
+  };
+
+  useEffect(() => {
+    startBackgroundProcessing();
+    return () => {
+      if(workerRef.current) {
+        workerRef.current.terminate();
+      }
+    }
+  }, []);
 
   const handleAlbumUpload = async (e) => {
     const files = e.target.files;
@@ -24,20 +61,16 @@ function App() {
     
     // Batch processing
     const fileArray = Array.from(files);
-    const chunkSize = 10;
+    const chunkSize = 50; // Faster bulk save
     for(let i=0; i<fileArray.length; i+=chunkSize) {
         const chunk = fileArray.slice(i, i+chunkSize);
-        await Promise.all(chunk.map(async file => {
-            const img = await readImage(file);
-            const { lab, dataUrl } = extractDominantColor(img);
-            if(dataUrl) {
-                await addPhoto(lab, dataUrl);
-            }
-        }));
+        await Promise.all(chunk.map(file => addRawPhoto(file)));
     }
     
     setIsProcessing(false);
-    alert(`已匯入 ${files.length} 張照片至相簿`);
+    alert(`素材庫已建立，正在優化色彩匹配...`);
+    
+    startBackgroundProcessing();
   };
 
   const handleBlueprintUpload = async (e) => {
@@ -50,8 +83,8 @@ function App() {
     const { pieces: newPieces, width, height } = sliceBlueprint(img, 30, 30); // 30x30 grid
     setCanvasSize({ w: width, h: height });
 
-    // 2. Fetch all photos from album
-    const photos = await db.photos.toArray();
+    // 2. Fetch all fully processed photos from album for index
+    const photos = await db.photos.where('status').equals('processed').toArray();
     
     // 3. Build KDTree if we have photos
     let tree = null;
@@ -121,6 +154,11 @@ function App() {
     <div className="App">
       <header className="header">
         <h1>Mosaic Alchemist</h1>
+        {backgroundProgress && (
+           <div style={{ color: '#aaa', fontSize: '12px', flex: 1, textAlign: 'left', marginLeft: '20px' }}>
+              正在優化色彩匹配 {backgroundProgress.completed} / {backgroundProgress.total}
+           </div>
+        )}
         <div className="tabs">
           <button 
             className={activeTab === 'setup' ? 'active' : ''} 
