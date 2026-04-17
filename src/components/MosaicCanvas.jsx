@@ -30,6 +30,7 @@ function createProgram(gl, vertexShader, fragmentShader) {
 export default function MosaicCanvas({ pieces, width, height }) {
   const canvasRef = useRef(null);
   const [imageMap, setImageMap] = useState({});
+  const textureCacheRef = useRef({});
 
   useEffect(() => {
     let missingImages = false;
@@ -97,26 +98,39 @@ export default function MosaicCanvas({ pieces, width, height }) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+    // Get or initialize texture cache
+    const textureCache = textureCacheRef.current;
+
     // Render individual pieces (Tile-based rendering simple mock)
     pieces.forEach(piece => {
       // 1. Setup Quad Position based on piece.x, piece.y
       setRectangle(gl, positionBuffer, piece.x, piece.y, piece.w, piece.h);
       
-      // 2. Setup Texture
-      const texture = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-      
-      if(piece.state === 'filled' && piece.assignedPhotoUrl && imageMap[piece.assignedPhotoUrl] instanceof HTMLImageElement) {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageMap[piece.assignedPhotoUrl]);
-      } else if (piece.imageElement) {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, piece.imageElement);
+      // 2. Setup Texture (with caching)
+      let textureKey = piece.state === 'missing' ? 'missing' : piece.assignedPhotoUrl || 'missing';
+      let texture = textureCache[textureKey];
+
+      if (!texture) {
+        texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        
+        if (piece.state === 'filled' && piece.assignedPhotoUrl && imageMap[piece.assignedPhotoUrl] instanceof HTMLImageElement) {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageMap[piece.assignedPhotoUrl]);
+          textureCache[textureKey] = texture;
+        } else if (piece.imageElement) {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, piece.imageElement);
+          // Don't cache ad-hoc image elements if they are unique
+        } else {
+          // Fallback for missing pieces: white texture, pure target color.
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+          textureCache['missing'] = texture;
+        }
       } else {
-        // Fallback for missing pieces: white texture, pure target color.
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+        gl.bindTexture(gl.TEXTURE_2D, texture);
       }
 
       // 3. Bind buffers & attributes

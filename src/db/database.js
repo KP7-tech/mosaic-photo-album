@@ -27,6 +27,20 @@ export async function incrementPhotoUsage(id) {
   }
 }
 
+// Bulk update photo usage (performance optimization)
+export async function bulkIncrementUsage(usageCounts) {
+  // usageCounts is an object { [id]: count }
+  return db.transaction('rw', db.photos, async () => {
+    for (const [idStr, count] of Object.entries(usageCounts)) {
+      const id = parseInt(idStr, 10);
+      const photo = await db.photos.get(id);
+      if (photo) {
+        await db.photos.update(id, { useCount: (photo.useCount || 0) + count });
+      }
+    }
+  });
+}
+
 // Old synchronous addition purely for test/camera
 export async function addPhoto(lab, dataUrl) {
   return await db.photos.add({

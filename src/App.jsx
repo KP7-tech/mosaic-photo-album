@@ -4,7 +4,7 @@ import ColorHunter from './components/ColorHunter';
 import MosaicCanvas from './components/MosaicCanvas';
 import { KDTree } from './core/kdTree';
 import { readImage, sliceBlueprint } from './core/imageProcessor';
-import { db, addRawPhoto, updatePhotoData, getPendingPhotos, clearPhotos, incrementPhotoUsage } from './db/database';
+import { db, addRawPhoto, updatePhotoData, getPendingPhotos, clearPhotos, bulkIncrementUsage } from './db/database';
 
 function App() {
   const [activeTab, setActiveTab] = useState('setup'); // 'setup' | 'mosaic' | 'hunter'
@@ -94,6 +94,8 @@ function App() {
 
     // 4. Assign photos
     const THRESHOLD = 15.0; // Delta E threshold
+    const usageCounts = {};
+
     for(let piece of newPieces) {
         let assigned = false;
         if(tree) {
@@ -103,12 +105,18 @@ function App() {
                 piece.state = 'filled';
                 piece.assignedPhotoUrl = best[0].node.obj.url;
                 assigned = true;
-                await incrementPhotoUsage(best[0].node.obj.id);
+                
+                const photoId = best[0].node.obj.id;
+                usageCounts[photoId] = (usageCounts[photoId] || 0) + 1;
             }
         }
         if(!assigned) {
             piece.state = 'missing';
         }
+    }
+
+    if (Object.keys(usageCounts).length > 0) {
+        await bulkIncrementUsage(usageCounts);
     }
 
     setPieces(newPieces);
@@ -210,9 +218,6 @@ function App() {
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '15px' }}>
               <button className="btn-primary" onClick={() => albumInputRef.current.click()}>
                 選擇圖片檔案
-              </button>
-              <button className="btn-primary" onClick={() => folderInputRef.current.click()} style={{ background: 'linear-gradient(180deg, rgba(255,195,0,0.2) 0%, rgba(255,195,0,0.1) 100%)', borderColor: 'rgba(255,195,0,0.3)' }}>
-                選擇整份資料夾 (全選)
               </button>
               <button className="btn-secondary" onClick={async () => { 
                 if(window.confirm('確定要清空現有素材庫嗎？此操作無法復原。')) {
