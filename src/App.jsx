@@ -163,7 +163,7 @@ function App() {
         {!isProcessing && activeTab === 'mosaic' && (
           <div className="mosaic-view">
             <p className="subtitle">請點擊畫布上的缺口塊 (Missing Pieces) 進行尋色</p>
-            <div className="canvas-wrapper" style={{ position: 'relative', width: canvasSize.w, height: canvasSize.h, margin: '0 auto' }}>
+            <div className="canvas-wrapper">
               <MosaicCanvas pieces={pieces} width={canvasSize.w} height={canvasSize.h} />
               
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
