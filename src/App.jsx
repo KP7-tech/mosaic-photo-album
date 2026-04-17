@@ -5,6 +5,7 @@ import MosaicCanvas from './components/MosaicCanvas';
 import { KDTree } from './core/kdTree';
 import { readImage, extractDominantColor, sliceBlueprint } from './core/imageProcessor';
 import { db, addPhoto, clearPhotos, incrementPhotoUsage } from './db/database';
+import { useRef } from 'react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('setup'); // 'setup' | 'mosaic' | 'hunter'
@@ -12,6 +13,9 @@ function App() {
   const [targetPiece, setTargetPiece] = useState(null);
   const [canvasSize, setCanvasSize] = useState({ w: 300, h: 300 });
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  const albumInputRef = useRef(null);
+  const blueprintInputRef = useRef(null);
 
   const handleAlbumUpload = async (e) => {
     const files = e.target.files;
@@ -147,16 +151,40 @@ function App() {
         {!isProcessing && activeTab === 'setup' && (
           <div className="setup-view" style={{ padding: '20px', color: 'white', textAlign: 'left' }}>
             <h2>1. 建立相簿 (掃描照片)</h2>
-            <p>請選擇你本機的圖片作為色彩庫來源：</p>
-            <input type="file" multiple accept="image/*" onChange={handleAlbumUpload} />
-            <br/><br/>
-            <button onClick={async () => { await clearPhotos(); alert('相簿已清空'); }}>清空現有相簿</button>
+            <p style={{marginBottom: '16px'}}>請選擇你本機的圖片作為色彩庫來源：</p>
+            
+            <input 
+              type="file" 
+              multiple 
+              accept="image/*" 
+              onChange={handleAlbumUpload} 
+              ref={albumInputRef}
+              style={{ display: 'none' }} 
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <button className="btn-primary" onClick={() => albumInputRef.current.click()}>
+                選擇照片檔案
+              </button>
+              <button className="btn-secondary" onClick={async () => { await clearPhotos(); alert('相簿已清空'); }}>
+                清空現有相簿
+              </button>
+            </div>
 
-            <hr style={{margin: '30px 0', borderColor: '#333'}} />
+            <hr style={{margin: '40px 0', borderColor: 'rgba(255,255,255,0.1)'}} />
 
             <h2>2. 選擇目標畫布 (Blueprint)</h2>
-            <p>請選擇一張你想拼成的圖片：</p>
-            <input type="file" accept="image/*" onChange={handleBlueprintUpload} />
+            <p style={{marginBottom: '16px'}}>請選擇一張你想拼成的圖片：</p>
+            
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleBlueprintUpload} 
+              ref={blueprintInputRef}
+              style={{ display: 'none' }} 
+            />
+            <button className="btn-primary" onClick={() => blueprintInputRef.current.click()}>
+              選擇畫布檔案
+            </button>
           </div>
         )}
 
