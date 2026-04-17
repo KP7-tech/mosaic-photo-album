@@ -102,17 +102,17 @@ h1 {
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #ffffff 0%, #e0e0e0 100%);
-  color: #0a0a0c;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.08) 100%);
+  color: #ffffff;
   padding: 16px 40px; /* Large size */
   font-size: 18px;
-  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2), 0 10px 20px rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.15), 0 10px 20px rgba(0, 0, 0, 0.3);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%);
   transform: translateY(-2px);
-  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2), 0 15px 25px rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.2), 0 15px 25px rgba(0, 0, 0, 0.4);
 }
 
 .btn-primary:active {

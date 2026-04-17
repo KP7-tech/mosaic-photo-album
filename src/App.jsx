@@ -165,7 +165,12 @@ function App() {
               <button className="btn-primary" onClick={() => albumInputRef.current.click()}>
                 選擇照片檔案
               </button>
-              <button className="btn-secondary" onClick={async () => { await clearPhotos(); alert('相簿已清空'); }}>
+              <button className="btn-secondary" onClick={async () => { 
+                if(window.confirm('確定要清空現有相簿嗎？此操作無法復原。')) {
+                  await clearPhotos(); 
+                  alert('相簿已清空'); 
+                }
+              }}>
                 清空現有相簿
               </button>
             </div>
