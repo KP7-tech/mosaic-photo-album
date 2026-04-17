@@ -99,15 +99,45 @@
 
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 8px;
+  /* Default: exactly 3 columns on any screen */
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
   overflow-y: auto;
   align-content: start;
 }
 
+/* 4 columns at narrow tablets / large phones */
+@media (min-width: 480px) {
+  .photo-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* 5 columns at tablets */
+@media (min-width: 720px) {
+  .photo-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* 6 columns on desktop */
+@media (min-width: 1024px) {
+  .photo-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+}
+
+/* 8 columns on wide desktop */
+@media (min-width: 1440px) {
+  .photo-grid {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
+
 .photo-cell {
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   position: relative;
   background: #2a2a2a;
@@ -119,6 +149,8 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Smooth rendering - let browser choose best algorithm */
+  image-rendering: auto;
 }
 
 .photo-cell.selected {
