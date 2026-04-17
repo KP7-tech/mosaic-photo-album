@@ -211,7 +211,7 @@ function App() {
                       width: `${(p.w / canvasSize.w) * 100}%`,
                       height: `${(p.h / canvasSize.h) * 100}%`,
                       cursor: p.state === 'missing' ? 'pointer' : 'default',
-                      border: p.state === 'missing' ? '1px dashed rgba(255,255,255,0.5)' : 'none',
+                      border: p.state === 'missing' ? '0.5px dashed rgba(255,255,255,0.15)' : 'none',
                       backgroundColor: p.state === 'missing' && p.id === targetPiece?.id ? 'rgba(255, 255, 255, 0.3)' : 'transparent',
                       pointerEvents: p.state === 'missing' ? 'auto' : 'none'
                     }}

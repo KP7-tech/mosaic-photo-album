@@ -193,8 +193,36 @@ h1 {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Glassmorphism for Color Hunter Panel is defined in inline styles in ColorHunter.jsx, 
-   but we enhance it here if needed */
+/* Mobile Responsive Header */
+@media (max-width: 600px) {
+  .header {
+    padding: 0 12px;
+    height: 64px;
+    gap: 8px;
+  }
+  
+  h1 {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  .tabs {
+    gap: 4px;
+  }
+
+  .tabs button {
+    padding: 6px 12px;
+    font-size: 11px;
+    border-radius: 9999px;
+  }
+
+  .main-content {
+    margin-top: 64px;
+    padding: 12px;
+  }
+}
+
+/* Glassmorphism for Color Hunter Panel */
 .color-hunter-container {
   backdrop-filter: blur(30px);
   border: 1px solid rgba(255, 255, 255, 0.1);
