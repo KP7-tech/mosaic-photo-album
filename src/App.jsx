@@ -16,6 +16,7 @@ function App() {
   const [backgroundProgress, setBackgroundProgress] = useState(null);
   
   const albumInputRef = useRef(null);
+  const folderInputRef = useRef(null);
   const blueprintInputRef = useRef(null);
   const workerRef = useRef(null);
 
@@ -188,8 +189,8 @@ function App() {
 
         {!isProcessing && activeTab === 'setup' && (
           <div className="setup-view" style={{ padding: '20px', color: 'white', textAlign: 'left' }}>
-            <h2>1. 建立相簿 (掃描照片)</h2>
-            <p style={{marginBottom: '16px'}}>請選擇你本機的圖片作為色彩庫來源：</p>
+            <h2>1. 建立素材庫 (掃描圖片)</h2>
+            <p style={{marginBottom: '16px'}}>請選擇你本機的圖片作為素材庫來源：</p>
             
             <input 
               type="file" 
@@ -199,17 +200,28 @@ function App() {
               ref={albumInputRef}
               style={{ display: 'none' }} 
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <input 
+              type="file" 
+              webkitdirectory="" 
+              directory="" 
+              onChange={handleAlbumUpload} 
+              ref={folderInputRef}
+              style={{ display: 'none' }} 
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '15px' }}>
               <button className="btn-primary" onClick={() => albumInputRef.current.click()}>
-                選擇照片檔案
+                選擇圖片檔案
+              </button>
+              <button className="btn-primary" onClick={() => folderInputRef.current.click()} style={{ background: 'linear-gradient(180deg, rgba(255,195,0,0.2) 0%, rgba(255,195,0,0.1) 100%)', borderColor: 'rgba(255,195,0,0.3)' }}>
+                選擇整份資料夾 (全選)
               </button>
               <button className="btn-secondary" onClick={async () => { 
-                if(window.confirm('確定要清空現有相簿嗎？此操作無法復原。')) {
+                if(window.confirm('確定要清空現有素材庫嗎？此操作無法復原。')) {
                   await clearPhotos(); 
-                  alert('相簿已清空'); 
+                  alert('素材庫已清空'); 
                 }
               }}>
-                清空現有相簿
+                清空素材庫
               </button>
             </div>
 
