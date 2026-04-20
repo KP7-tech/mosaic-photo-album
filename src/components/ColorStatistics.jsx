@@ -95,7 +95,12 @@ export default function ColorStatistics({ pieces, stats }) {
         <div className="divider"></div>
         <div className="overall-stat">
           <span className="stat-value">{stats.uniquePhotos}</span>
-          <span className="stat-label">所用素材數</span>
+          <span className="stat-label">素材數</span>
+        </div>
+        <div className="divider"></div>
+        <div className="overall-stat">
+          <span className="stat-value">{stats.filled} / {stats.total}</span>
+          <span className="stat-label">已完成塊數</span>
         </div>
       </div>
 

@@ -85,8 +85,10 @@ export default function ArtworksGallery({ onNewArtwork, onOpenArtwork }) {
                  <div className="art-info">
                      <div className="art-name">{art.name}</div>
                      <div className="art-meta">
-                         {art.status === 'completed' ? '已完成' : '進行中'} · {art.piecesCount} 塊
-                     </div>
+                          {art.status === 'completed' ? '已完成' : `進行中 · ${((art.filledCount / art.piecesCount) * 100).toFixed(1)}%`}
+                          <br />
+                          {art.piecesCount} 塊拼圖
+                      </div>
                  </div>
              </div>
          ))}

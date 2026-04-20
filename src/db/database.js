@@ -9,13 +9,16 @@ db.version(1).stores({
   mosaicPieces: 'id, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId'
 });
 
-db.version(4).stores({
+db.version(5).stores({
   photos: '++id, status, L, a, b, url, timestamp, useCount, name, size, *groups',
   mosaicPieces: 'id, artworkId, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId',
   groups: 'id, name, isDefault, timestamp',
-  artworks: '++id, name, status, width, height, piecesCount, thumbDataUrl, blueprintFullUrl, maxRepeat, exclusionRadius, targetGroupId, timestamp'
+  artworks: '++id, name, status, width, height, piecesCount, filledCount, thumbDataUrl, blueprintFullUrl, maxRepeat, exclusionRadius, targetGroupId, timestamp'
 }).upgrade(tx => {
-  // Existing data upgrade logic if needed
+  // Existing data upgrade logic
+  return tx.artworks.toCollection().modify(art => {
+    art.filledCount = art.filledCount || 0;
+  });
 });
 
 // Fetch only fully processed photos for the KD-Tree index, optionally filtered by group

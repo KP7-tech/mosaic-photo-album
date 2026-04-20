@@ -156,15 +156,18 @@ function App() {
     if (updated) {
       setPieces(newPieces);
       // Persist updated pieces to DB
+      const filledIncrement = newPieces.filter((p, i) => p.state === 'filled' && currentPieces[i].state === 'missing').length;
+      
       const dbUpdates = newPieces
         .filter((p, i) => p.state === 'filled' && currentPieces[i].state === 'missing')
         .map(p => db.mosaicPieces.update(p.id, { state: 'filled', assignedPhotoUrl: p.assignedPhotoUrl }));
       await Promise.all(dbUpdates);
 
       const stillMissing = newPieces.filter(p => p.state === 'missing').length;
-      if (stillMissing === 0) {
-        await db.artworks.update(artworkId, { status: 'completed' });
-      }
+      await db.artworks.update(artworkId, { 
+        status: stillMissing === 0 ? 'completed' : 'in-progress',
+        filledCount: artwork.filledCount + filledIncrement
+      });
     }
   };
 
@@ -238,8 +241,7 @@ function App() {
     setPieces(newPieces);
     
     // Update DB
-    await bulkIncrementUsage(dbUsageCounts); // This is approximate since we don't clear old counts easily here
-    // In a real app we'd probably want a more robust usage tracking, but for now this fits the logic.
+    await bulkIncrementUsage(dbUsageCounts); 
     
     const dbPieces = newPieces.map(p => ({
         id: p.id,
@@ -249,9 +251,11 @@ function App() {
     }));
     await db.mosaicPieces.bulkPut(dbPieces);
 
+    const filledCount = newPieces.filter(p => p.state === 'filled').length;
     const missingCount = newPieces.filter(p => p.state === 'missing').length;
     await db.artworks.update(currentArtworkId, { 
         status: missingCount === 0 ? 'completed' : 'in-progress',
+        filledCount,
         maxRepeat,
         exclusionRadius
     });
@@ -346,15 +350,18 @@ function App() {
     // 5. Create artwork record
     const thumbDataUrl = await createThumb(file);
     const artworkName = file.name || `專案 ${new Date().toLocaleDateString()}`;
-    const missingCount = newPieces.filter(p => p.state === 'missing').length;
+    const filledCount = newPieces.filter(p => p.state === 'filled').length;
+    const missingCount = newPieces.length - filledCount;
     const isCompleted = missingCount === 0;
+    const piecesCount = newPieces.length;
 
     const artworkId = await db.artworks.add({
       name: artworkName,
       status: isCompleted ? 'completed' : 'in-progress',
       width,
       height,
-      piecesCount: newPieces.length,
+      piecesCount,
+      filledCount,
       thumbDataUrl,
       blueprintFullUrl: await createThumb(file, 1200), // High res blueprint
       maxRepeat,
@@ -452,9 +459,12 @@ function App() {
 
     // Check if fully completed
     const stillMissing = newPieces.filter(p => p.state === 'missing').length;
-    if(stillMissing === 0) {
-      await db.artworks.update(currentArtworkId, { status: 'completed' });
-    }
+    const newFilledCount = newPieces.filter(p => p.state === 'filled').length;
+    
+    await db.artworks.update(currentArtworkId, { 
+      status: stillMissing === 0 ? 'completed' : 'in-progress',
+      filledCount: newFilledCount
+    });
 
     setTargetPiece(null);
     setActiveTab('mosaic');
