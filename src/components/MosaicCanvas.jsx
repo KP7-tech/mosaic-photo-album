@@ -27,10 +27,19 @@ function createProgram(gl, vertexShader, fragmentShader) {
   return program;
 }
 
-export default function MosaicCanvas({ pieces, width, height }) {
+export default function MosaicCanvas({ pieces, width, height, viewMode, blueprintUrl }) {
   const canvasRef = useRef(null);
   const [imageMap, setImageMap] = useState({});
+  const [blueprintImg, setBlueprintImg] = useState(null);
   const textureCacheRef = useRef({});
+
+  useEffect(() => {
+    if (blueprintUrl) {
+      const img = new Image();
+      img.onload = () => setBlueprintImg(img);
+      img.src = blueprintUrl;
+    }
+  }, [blueprintUrl]);
 
   useEffect(() => {
     let missingImages = false;
@@ -101,60 +110,84 @@ export default function MosaicCanvas({ pieces, width, height }) {
     // Get or initialize texture cache
     const textureCache = textureCacheRef.current;
 
-    // Render individual pieces (Tile-based rendering simple mock)
-    pieces.forEach(piece => {
-      // 1. Setup Quad Position based on piece.x, piece.y
-      setRectangle(gl, positionBuffer, piece.x, piece.y, piece.w, piece.h);
-      
-      // 2. Setup Texture (with caching)
-      let textureKey = piece.state === 'missing' ? 'missing' : piece.assignedPhotoUrl || 'missing';
-      let texture = textureCache[textureKey];
+    // Render Logic Selection
+    if (viewMode === 'blueprint' && blueprintImg) {
+      // 1. Setup full rectangle quad
+      setRectangle(gl, positionBuffer, 0, 0, width, height);
 
-      if (!texture) {
-        texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+      // 2. Load/Bind Blueprint Texture
+      let bpTexture = textureCache['blueprint'];
+      if (!bpTexture) {
+        bpTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, bpTexture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        
-        if (piece.state === 'filled' && piece.assignedPhotoUrl && imageMap[piece.assignedPhotoUrl] instanceof HTMLImageElement) {
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageMap[piece.assignedPhotoUrl]);
-          textureCache[textureKey] = texture;
-        } else if (piece.imageElement) {
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, piece.imageElement);
-          // Don't cache ad-hoc image elements if they are unique
-        } else {
-          // Fallback for missing pieces: white texture, pure target color.
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
-          textureCache['missing'] = texture;
-        }
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, blueprintImg);
+        textureCache['blueprint'] = bpTexture;
       } else {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.bindTexture(gl.TEXTURE_2D, bpTexture);
       }
 
       // 3. Bind buffers & attributes
       gl.enableVertexAttribArray(positionLocation);
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-      
       gl.enableVertexAttribArray(texCoordLocation);
       gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
       gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
-      
-      // 4. Set Uniforms (Blend Color & Alpha)
-      // piece.targetRGB = [r, g, b]
-      gl.uniform3f(targetRgbLocation, piece.targetRGB[0], piece.targetRGB[1], piece.targetRGB[2]);
-      
-      // Alpha: filled = 0.0 (pure photo, no color overlay), missing = 1.0 (solid target color)
-      const blendAlpha = piece.state === 'missing' ? 1.0 : 0.0;
-      gl.uniform1f(alphaLocation, blendAlpha);
-      
-      // 5. Draw the mapped quad
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    });
 
-  }, [pieces, width, height, imageMap]);
+      // 4. Uniforms (No color blend for blueprint)
+      gl.uniform3f(targetRgbLocation, 0, 0, 0);
+      gl.uniform1f(alphaLocation, 0.0);
+
+      // 5. Draw
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    } else {
+      // Render individual pieces
+      pieces.forEach(piece => {
+        setRectangle(gl, positionBuffer, piece.x, piece.y, piece.w, piece.h);
+        
+        let textureKey = piece.state === 'missing' ? 'missing' : piece.assignedPhotoUrl || 'missing';
+        let texture = textureCache[textureKey];
+
+        if (!texture) {
+          texture = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          
+          if (piece.state === 'filled' && piece.assignedPhotoUrl && imageMap[piece.assignedPhotoUrl] instanceof HTMLImageElement) {
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageMap[piece.assignedPhotoUrl]);
+            textureCache[textureKey] = texture;
+          } else if (piece.imageElement) {
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, piece.imageElement);
+          } else {
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+            textureCache['missing'] = texture;
+          }
+        } else {
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+        }
+
+        gl.enableVertexAttribArray(positionLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(texCoordLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+        gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+        gl.uniform3f(targetRgbLocation, piece.targetRGB[0], piece.targetRGB[1], piece.targetRGB[2]);
+        const blendAlpha = piece.state === 'missing' ? 1.0 : 0.0;
+        gl.uniform1f(alphaLocation, blendAlpha);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      });
+    }
+
+  }, [pieces, width, height, imageMap, viewMode, blueprintImg]);
 
   return (
     <canvas 

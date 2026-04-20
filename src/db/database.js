@@ -9,14 +9,13 @@ db.version(1).stores({
   mosaicPieces: 'id, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId'
 });
 
-db.version(3).stores({
+db.version(4).stores({
   photos: '++id, status, L, a, b, url, timestamp, useCount, name, size, *groups',
   mosaicPieces: 'id, artworkId, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId',
   groups: 'id, name, isDefault, timestamp',
-  artworks: '++id, name, status, width, height, piecesCount, thumbDataUrl, targetGroupId, timestamp'
+  artworks: '++id, name, status, width, height, piecesCount, thumbDataUrl, blueprintFullUrl, maxRepeat, exclusionRadius, targetGroupId, timestamp'
 }).upgrade(tx => {
-  // Existing data doesn't have name/size, but we can't easily backfill from Blobs in upgrade
-  // Just leave them undefined for old records.
+  // Existing data upgrade logic if needed
 });
 
 // Fetch only fully processed photos for the KD-Tree index, optionally filtered by group
