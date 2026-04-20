@@ -3,14 +3,15 @@
   flex-direction: column;
   height: 100%;
   color: white;
-  padding: 16px;
+  padding: 16px 0; /* Vertical padding only */
+  width: 100%;
 }
 
 .group-tabs {
   display: flex;
   overflow-x: auto;
   gap: 10px;
-  padding-bottom: 12px;
+  padding: 0 16px 12px 16px; /* Keep side padding for chips */
   margin-bottom: 12px;
   border-bottom: 1px solid rgba(255,255,255,0.1);
   scrollbar-width: none;
@@ -49,6 +50,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  padding: 0 16px; /* Keep side padding for toolbar buttons */
 }
 
 .group-actions {
@@ -101,9 +103,10 @@
   display: grid;
   /* Default: exactly 3 columns on any screen */
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 1px; /* Minimal gap for seamless look */
   overflow-y: auto;
   align-content: start;
+  width: 100%;
 }
 
 /* 4 columns at narrow tablets / large phones */
@@ -137,7 +140,7 @@
 
 .photo-cell {
   aspect-ratio: 1;
-  border-radius: 6px;
+  border-radius: 0; /* Square for seamless grid */
   overflow: hidden;
   position: relative;
   background: #2a2a2a;

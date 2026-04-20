@@ -209,7 +209,7 @@ function App() {
   return (
     <div className="App">
       <header className="header">
-        <h1>Mosaic Alchemist</h1>
+        <h1>Mosaic<br />Album</h1>
         {backgroundProgress && (
            <div style={{ color: '#aaa', fontSize: '12px', flex: 1, textAlign: 'left', marginLeft: '20px' }}>
               正在優化色彩匹配 {backgroundProgress.completed} / {backgroundProgress.total}

@@ -30,28 +30,31 @@ body {
   justify-content: space-between;
   align-items: center;
   height: 80px;
-  padding: 0 40px;
-  background: rgba(10, 10, 12, 0.9); /* Slightly more opaque for independence */
+  padding: 0 20px; /* Reduced from 40px */
+  background: rgba(10, 10, 12, 0.9);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw; /* Use viewport width directly */
+  width: 100vw;
   box-sizing: border-box;
-  z-index: 1000; /* Higher z-index */
+  z-index: 1000;
   pointer-events: auto;
 }
 
 h1 {
   font-weight: 800;
   margin: 0;
-  font-size: 24px; /* Fixed size */
+  font-size: 18px; /* Slightly smaller for two lines */
+  line-height: 1.1;
   flex-shrink: 0;
   background: linear-gradient(135deg, #FF5733, #FFC300);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 4px 20px var(--accent-glow);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .tabs {
@@ -149,8 +152,8 @@ h1 {
 
 .main-content {
   flex: 1;
-  padding: 20px;
-  margin-top: 80px; /* offset for fixed header */
+  padding: 20px 0; /* Removed horizontal padding */
+  margin-top: 80px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -203,8 +206,8 @@ h1 {
   }
   
   h1 {
-    font-size: 16px;
-    white-space: nowrap;
+    font-size: 14px;
+    line-height: 1.1;
   }
 
   .tabs {
