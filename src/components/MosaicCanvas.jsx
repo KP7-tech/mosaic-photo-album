@@ -115,8 +115,8 @@ export default function MosaicCanvas({ pieces, width, height }) {
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         
         if (piece.state === 'filled' && piece.assignedPhotoUrl && imageMap[piece.assignedPhotoUrl] instanceof HTMLImageElement) {
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageMap[piece.assignedPhotoUrl]);
@@ -146,9 +146,8 @@ export default function MosaicCanvas({ pieces, width, height }) {
       // piece.targetRGB = [r, g, b]
       gl.uniform3f(targetRgbLocation, piece.targetRGB[0], piece.targetRGB[1], piece.targetRGB[2]);
       
-      // Alpha depends if it's missing or filled
-      // Filled = 0.2 blend. Missing = 0.8 blend or 1.0.
-      const blendAlpha = piece.state === 'missing' ? 1.0 : 0.2;
+      // Alpha: filled = 0.0 (pure photo, no color overlay), missing = 1.0 (solid target color)
+      const blendAlpha = piece.state === 'missing' ? 1.0 : 0.0;
       gl.uniform1f(alphaLocation, blendAlpha);
       
       // 5. Draw the mapped quad

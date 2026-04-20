@@ -24,7 +24,7 @@ export const vertexShaderSource = `
 `;
 
 export const fragmentShaderSource = `
-  precision mediump float;
+  precision highp float;
   
   // Passed in from the vertex shader
   varying vec2 v_texCoord;
@@ -45,6 +45,7 @@ export const fragmentShaderSource = `
     vec3 targetColor = u_targetRGB / 255.0;
     
     // Mix the original texture color with the target color using alpha
+    // alpha=0 -> pure photo, alpha=1 -> pure target color
     vec3 blended = mix(color.rgb, targetColor, u_alpha);
     
     gl_FragColor = vec4(blended, color.a);

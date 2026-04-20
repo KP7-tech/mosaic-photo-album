@@ -12,14 +12,12 @@ self.onmessage = async (e) => {
         // high efficiency image decoding
         const bitmap = await self.createImageBitmap(file);
         
-        // 5x5 sampling
-        const w = 5;
-        const h = 5;
-        const canvas = new OffscreenCanvas(w, h);
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(bitmap, 0, 0, w, h);
+        // --- Step 1: 5x5 sampling for LAB color matching (unchanged) ---
+        const sampleCanvas = new OffscreenCanvas(5, 5);
+        const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+        sampleCtx.drawImage(bitmap, 0, 0, 5, 5);
         
-        const imageData = ctx.getImageData(0, 0, w, h).data;
+        const imageData = sampleCtx.getImageData(0, 0, 5, 5).data;
         let r = 0, g = 0, b = 0, count = 0;
         for(let i = 0; i < imageData.length; i += 4) {
           r += imageData[i];
@@ -36,16 +34,24 @@ self.onmessage = async (e) => {
         
         const lab = rgbToLab(r, g, b);
         
-        // Convert to compressed Blob -> DataURL for thumbnail usage
-        const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.5 });
+        // --- Step 2: 256px display thumbnail (high quality) ---
+        const THUMB_SIZE = 256;
+        const scale = Math.min(THUMB_SIZE / bitmap.width, THUMB_SIZE / bitmap.height, 1);
+        const tw = Math.round(bitmap.width * scale);
+        const th = Math.round(bitmap.height * scale);
+        const thumbCanvas = new OffscreenCanvas(tw, th);
+        const thumbCtx = thumbCanvas.getContext('2d');
+        thumbCtx.drawImage(bitmap, 0, 0, tw, th);
+        
+        const thumbBlob = await thumbCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
         const reader = new FileReader();
-        reader.readAsDataURL(blob);
+        reader.readAsDataURL(thumbBlob);
         
         await new Promise((resolve, reject) => {
           reader.onloadend = () => {
             self.postMessage({
               type: 'FILE_PROCESSED',
-              payload: { id, lab, dataUrl: reader.result }
+              payload: { id, lab, dataUrl: reader.result } // dataUrl is now the 256px thumb
             });
             resolve();
           };
