@@ -4,6 +4,7 @@ import ColorHunter from './components/ColorHunter';
 import MosaicCanvas from './components/MosaicCanvas';
 import LibraryView from './components/LibraryView';
 import ArtworksGallery from './components/ArtworksGallery';
+import ColorStatistics from './components/ColorStatistics';
 import { KDTree } from './core/kdTree';
 import { readImage, sliceBlueprint, createThumb } from './core/imageProcessor';
 import { db, getPendingPhotos, updatePhotoData, initDefaultGroup, getAllPhotosForIndex, bulkIncrementUsage } from './db/database';
@@ -478,7 +479,7 @@ function App() {
           
           {currentArtworkId && (
             <button 
-              className={(activeTab === 'mosaic' && !isProcessing) ? 'active' : ''} 
+              className={activeTab === 'mosaic' ? 'active' : ''} 
               onClick={() => setActiveTab('mosaic')}
             >
               目前畫布
@@ -569,19 +570,7 @@ function App() {
               )}
             </div>
 
-            <div className="mosaic-stats">
-               <div className="stat-item">
-                  <span className="stat-label">完成進度</span>
-                  <span className="stat-value">{stats.filled} / {stats.total} ({((stats.filled/stats.total)*100).toFixed(1)}%)</span>
-                  <div className="progress-bar-container">
-                    <div className="progress-bar-fill" style={{ width: `${(stats.filled/stats.total)*100}%` }}></div>
-                  </div>
-               </div>
-               <div className="stat-item">
-                  <span className="stat-label">所用相色數</span>
-                  <span className="stat-value">{stats.uniquePhotos} 庫存素材</span>
-               </div>
-            </div>
+            <ColorStatistics pieces={pieces} stats={stats} />
           </div>
         )}
 
