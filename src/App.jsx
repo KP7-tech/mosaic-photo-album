@@ -12,7 +12,10 @@ import { db, getPendingPhotos, updatePhotoData, initDefaultGroup, getAllPhotosFo
 function App() {
   const [activeTab, setActiveTab] = useState('library'); // 'library' | 'gallery' | 'mosaic' | 'hunter'
   const [pieces, setPieces] = useState([]);
-  const [currentArtworkId, setCurrentArtworkId] = useState(null);
+  const [currentArtworkId, setCurrentArtworkId] = useState(() => {
+    // Optional: try to recover from session storage if we want true persistence across refreshes
+    return null;
+  });
   const [targetPiece, setTargetPiece] = useState(null);
   const [canvasSize, setCanvasSize] = useState({ w: 300, h: 300 });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -47,8 +50,10 @@ function App() {
              setBackgroundProgress(null);
              isWorkerRunning.current = false;
              // Refresh current artwork with newly processed photos
-             setCurrentArtworkId(prev => prev ? prev : null); // trigger refresh via ref below
-             refreshCurrentArtworkRef.current?.();
+             // Instead of setting State immediately, we just check if we have an active one
+             if (currentArtworkIdRef.current) {
+                refreshCurrentArtworkRef.current?.();
+             }
         }
       };
     }
@@ -370,6 +375,8 @@ function App() {
 
     setPieces(newPieces);
     setCanvasSize({ w: width, h: height });
+    setFullBlueprintUrl(await createThumb(file, 1200));
+    setViewMode('mosaic'); // Reset to mosaic view
     setCurrentArtworkId(artworkId);
     setActiveTab('mosaic');
     setIsProcessing(false);
@@ -382,12 +389,11 @@ function App() {
       const savedPieces = await db.mosaicPieces.where('artworkId').equals(id).toArray();
       setPieces(savedPieces);
       setCanvasSize({ w: artwork.width, h: artwork.height });
-      setCurrentArtworkId(id);
-      setLiveSettings({ 
         maxRepeat: artwork.maxRepeat || 3, 
         exclusionRadius: artwork.exclusionRadius || 2 
       });
-      setFullBlueprintUrl(artwork.blueprintFullUrl);
+      setFullBlueprintUrl(artwork.blueprintFullUrl || artwork.thumbDataUrl); // Fallback to thumb for legacy
+      setViewMode('mosaic'); // Reset to mosaic view
       setActiveTab('mosaic');
     }
     setIsProcessing(false);

@@ -111,39 +111,46 @@ export default function MosaicCanvas({ pieces, width, height, viewMode, blueprin
     const textureCache = textureCacheRef.current;
 
     // Render Logic Selection
-    if (viewMode === 'blueprint' && blueprintImg) {
-      // 1. Setup full rectangle quad
-      setRectangle(gl, positionBuffer, 0, 0, width, height);
+    if (viewMode === 'blueprint') {
+      if (blueprintImg) {
+        // 1. Setup full rectangle quad
+        setRectangle(gl, positionBuffer, 0, 0, width, height);
 
-      // 2. Load/Bind Blueprint Texture
-      let bpTexture = textureCache['blueprint'];
-      if (!bpTexture) {
-        bpTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, bpTexture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, blueprintImg);
-        textureCache['blueprint'] = bpTexture;
+        // 2. Load/Bind Blueprint Texture
+        let bpTexture = textureCache['blueprint'];
+        if (!bpTexture) {
+          bpTexture = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, bpTexture);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, blueprintImg);
+          textureCache['blueprint'] = bpTexture;
+        } else {
+          gl.bindTexture(gl.TEXTURE_2D, bpTexture);
+        }
+
+        // 3. Bind buffers & attributes
+        gl.enableVertexAttribArray(positionLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(texCoordLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+        gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+        // 4. Uniforms (No color blend for blueprint)
+        gl.uniform3f(targetRgbLocation, 0, 0, 0);
+        gl.uniform1f(alphaLocation, 0.0);
+
+        // 5. Draw
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
       } else {
-        gl.bindTexture(gl.TEXTURE_2D, bpTexture);
+        // Blueprint is missing or loading - render tiles as wireframes or simple colors for now
+        // Or just clear to gray
+        gl.clearColor(0.1, 0.1, 0.1, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
       }
-
-      // 3. Bind buffers & attributes
-      gl.enableVertexAttribArray(positionLocation);
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(texCoordLocation);
-      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-      gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
-
-      // 4. Uniforms (No color blend for blueprint)
-      gl.uniform3f(targetRgbLocation, 0, 0, 0);
-      gl.uniform1f(alphaLocation, 0.0);
-
-      // 5. Draw
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
     } else {
       // Render individual pieces
       pieces.forEach(piece => {
