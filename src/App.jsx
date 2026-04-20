@@ -18,14 +18,17 @@ function App() {
   const [backgroundProgress, setBackgroundProgress] = useState(null);
   
   const workerRef = useRef(null);
+  const isWorkerRunning = useRef(false); // guard against duplicate processing calls
 
   const startBackgroundProcessing = async () => {
+    if (isWorkerRunning.current) return; // already running, skip
     const pendingPhotos = await getPendingPhotos();
     if(pendingPhotos.length === 0) {
       setBackgroundProgress(null);
       return;
     }
     
+    isWorkerRunning.current = true;
     setBackgroundProgress({ total: pendingPhotos.length, completed: 0 });
     
     if(!workerRef.current) {
@@ -37,6 +40,10 @@ function App() {
              setBackgroundProgress(prev => prev ? { ...prev, completed: prev.completed + 1 } : null);
         } else if (type === 'ALL_PROCESSED') {
              setBackgroundProgress(null);
+             isWorkerRunning.current = false;
+             // Refresh current artwork with newly processed photos
+             setCurrentArtworkId(prev => prev ? prev : null); // trigger refresh via ref below
+             refreshCurrentArtworkRef.current?.();
         }
       };
     }
@@ -44,6 +51,11 @@ function App() {
     const payloadFiles = pendingPhotos.map(p => ({ id: p.id, file: p.file }));
     workerRef.current.postMessage({ type: 'PROCESS_FILES', payload: { files: payloadFiles } });
   };
+
+  // Ref to the refresh function so the worker callback can call it without stale closure
+  const refreshCurrentArtworkRef = useRef(null);
+  const currentArtworkIdRef = useRef(null);
+  const artworkSettingsRef = useRef({ maxRepeat: 3, exclusionRadius: 2 });
 
   useEffect(() => {
     initDefaultGroup();
@@ -55,7 +67,107 @@ function App() {
     }
   }, []);
 
-  const handleNewArtwork = async (file, targetGroupId) => {
+  // Keep currentArtworkId accessible in non-reactive callbacks
+  useEffect(() => {
+    currentArtworkIdRef.current = currentArtworkId;
+  }, [currentArtworkId]);
+
+  // Refresh the current artwork's missing pieces with newly processed photos
+  const refreshCurrentArtwork = async (currentPieces, settings) => {
+    const artworkId = currentArtworkIdRef.current;
+    if (!artworkId || !currentPieces || currentPieces.length === 0) return;
+
+    const artwork = await db.artworks.get(artworkId);
+    if (!artwork) return;
+
+    const photos = await getAllPhotosForIndex(artwork.targetGroupId);
+    if (photos.length === 0) return;
+
+    const tree = new KDTree(photos, ['L', 'a', 'b']);
+    const { maxRepeat, exclusionRadius } = settings || artworkSettingsRef.current;
+    const THRESHOLD = 35.0; // Wider threshold for refresh
+
+    // Build usage map from already-filled pieces
+    const usageCounts = {};
+    // Build a grid map: key = "col,row" -> photoUrl
+    const cols = Math.round(artwork.width / (currentPieces[0]?.w || 1));
+    const placedMap = {}; // key="col,row" -> photoUrl
+    
+    currentPieces.forEach(p => {
+      if (p.state === 'filled' && p.assignedPhotoUrl) {
+        const col = Math.round(p.x / (p.w || 1));
+        const row = Math.round(p.y / (p.h || 1));
+        placedMap[`${col},${row}`] = p.assignedPhotoUrl;
+        usageCounts[p.assignedPhotoUrl] = (usageCounts[p.assignedPhotoUrl] || 0) + 1;
+      }
+    });
+
+    let updated = false;
+    const newPieces = currentPieces.map(p => {
+      if (p.state !== 'missing') return p;
+
+      const point = { L: p.targetLAB[0], a: p.targetLAB[1], b: p.targetLAB[2] };
+      const col = Math.round(p.x / (p.w || 1));
+      const row = Math.round(p.y / (p.h || 1));
+
+      // Try candidates in order until one passes all constraints
+      const candidates = tree.nearest(point, Math.min(photos.length, 20));
+      for (const { node, distance } of candidates) {
+        if (distance > THRESHOLD) break;
+        const photoUrl = node.obj.url;
+        if (!photoUrl) continue;
+
+        // Check max repeat globally
+        if ((usageCounts[photoUrl] || 0) >= maxRepeat) continue;
+
+        // Check exclusion radius (no same photo within NxN neighborhood)
+        let tooClose = false;
+        for (let dr = -exclusionRadius; dr <= exclusionRadius; dr++) {
+          for (let dc = -exclusionRadius; dc <= exclusionRadius; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            if (placedMap[`${col + dc},${row + dr}`] === photoUrl) {
+              tooClose = true;
+              break;
+            }
+          }
+          if (tooClose) break;
+        }
+        if (tooClose) continue;
+
+        // Accept this candidate
+        usageCounts[photoUrl] = (usageCounts[photoUrl] || 0) + 1;
+        placedMap[`${col},${row}`] = photoUrl;
+        updated = true;
+        return { ...p, state: 'filled', assignedPhotoUrl: photoUrl };
+      }
+      return p;
+    });
+
+    if (updated) {
+      setPieces(newPieces);
+      // Persist updated pieces to DB
+      const dbUpdates = newPieces
+        .filter((p, i) => p.state === 'filled' && currentPieces[i].state === 'missing')
+        .map(p => db.mosaicPieces.update(p.id, { state: 'filled', assignedPhotoUrl: p.assignedPhotoUrl }));
+      await Promise.all(dbUpdates);
+
+      const stillMissing = newPieces.filter(p => p.state === 'missing').length;
+      if (stillMissing === 0) {
+        await db.artworks.update(artworkId, { status: 'completed' });
+      }
+    }
+  };
+
+  // Keep the refresh function ref up to date with latest pieces
+  useEffect(() => {
+    refreshCurrentArtworkRef.current = () => refreshCurrentArtwork(pieces, artworkSettingsRef.current);
+  }, [pieces]);
+
+  const handleNewArtwork = async (file, targetGroupId, settings = {}) => {
+    const maxRepeat = settings.maxRepeat ?? 3;
+    const exclusionRadius = settings.exclusionRadius ?? 2;
+    artworkSettingsRef.current = { maxRepeat, exclusionRadius };
+
     setIsProcessing(true);
     
     // 1. Process blueprint into pieces
@@ -71,22 +183,51 @@ function App() {
         tree = new KDTree(photos, ['L', 'a', 'b']);
     }
 
-    // 4. Assign photos
-    const THRESHOLD = 15.0; // Delta E threshold
-    const usageCounts = {};
+    // 4. Assign photos with repeat and exclusion constraints
+    const THRESHOLD = 15.0;
+    const usageCounts = {};      // photoUrl -> count
+    const placedMap = {};        // "col,row" -> photoUrl
+    const dbUsageCounts = {};    // photoId -> count (for DB)
 
     for(let piece of newPieces) {
         let assigned = false;
         if(tree) {
             const point = { L: piece.targetLAB[0], a: piece.targetLAB[1], b: piece.targetLAB[2] };
-            const best = tree.nearest(point, 1);
-            if(best.length > 0 && best[0].distance < THRESHOLD) {
-                piece.state = 'filled';
-                piece.assignedPhotoUrl = best[0].node.obj.url;
-                assigned = true;
-                
-                const photoId = best[0].node.obj.id;
-                usageCounts[photoId] = (usageCounts[photoId] || 0) + 1;
+            const col = Math.round(piece.x / piece.w);
+            const row = Math.round(piece.y / piece.h);
+
+            // Try top-N candidates (wider pool for better diversity)
+            const candidates = tree.nearest(point, Math.min(photos.length, 20));
+            for (const { node, distance } of candidates) {
+              if (distance > THRESHOLD) break;
+              const photo = node.obj;
+              if (!photo.url) continue;
+
+              // Check global max repeat
+              if ((usageCounts[photo.url] || 0) >= maxRepeat) continue;
+
+              // Check exclusion radius
+              let tooClose = false;
+              for (let dr = -exclusionRadius; dr <= exclusionRadius; dr++) {
+                for (let dc = -exclusionRadius; dc <= exclusionRadius; dc++) {
+                  if (dr === 0 && dc === 0) continue;
+                  if (placedMap[`${col + dc},${row + dr}`] === photo.url) {
+                    tooClose = true;
+                    break;
+                  }
+                }
+                if (tooClose) break;
+              }
+              if (tooClose) continue;
+
+              // Accept
+              usageCounts[photo.url] = (usageCounts[photo.url] || 0) + 1;
+              placedMap[`${col},${row}`] = photo.url;
+              dbUsageCounts[photo.id] = (dbUsageCounts[photo.id] || 0) + 1;
+              piece.state = 'filled';
+              piece.assignedPhotoUrl = photo.url;
+              assigned = true;
+              break;
             }
         }
         if(!assigned) {
@@ -94,8 +235,8 @@ function App() {
         }
     }
 
-    if (Object.keys(usageCounts).length > 0) {
-        await bulkIncrementUsage(usageCounts);
+    if (Object.keys(dbUsageCounts).length > 0) {
+        await bulkIncrementUsage(dbUsageCounts);
     }
 
     // 5. Create artwork record

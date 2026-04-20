@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { db, getGroups, addGroup, renameGroup, deleteGroup, updatePhotoGroups, addRawPhoto } from '../db/database';
+import { db, getGroups, addGroup, renameGroup, deleteGroup, updatePhotoGroups, addRawPhoto, checkDuplicatePhoto } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import './LibraryView.css';
 
@@ -50,14 +50,27 @@ export default function LibraryView({ onProcessingBackground }) {
     // Upload and assign to 'all' AND the currently active group
     const targetGroups = activeGroup === 'all' ? ['all'] : ['all', activeGroup];
     
-    // Batch processing
+    // Batch processing with duplicate check
     const fileArray = Array.from(files);
-    const chunkSize = 50; 
-    for(let i=0; i<fileArray.length; i+=chunkSize) {
-        const chunk = fileArray.slice(i, i+chunkSize);
-        await Promise.all(chunk.map(file => addRawPhoto(file, targetGroups)));
+    let addedCount = 0;
+    let duplicateCount = 0;
+
+    for(let file of fileArray) {
+        const isDuplicate = await checkDuplicatePhoto(file.name, file.size);
+        if (isDuplicate) {
+            duplicateCount++;
+            continue;
+        }
+        await addRawPhoto(file, targetGroups);
+        addedCount++;
     }
     
+    if (duplicateCount > 0) {
+        alert(`已加入 ${addedCount} 張照片，跳過 ${duplicateCount} 張重複照片。`);
+    } else {
+        // alert(`已成功加入 ${addedCount} 張照片。`);
+    }
+
     // Reset input value so same files can be re-selected
     e.target.value = '';
     onProcessingBackground();

@@ -9,15 +9,14 @@ db.version(1).stores({
   mosaicPieces: 'id, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId'
 });
 
-db.version(2).stores({
-  photos: '++id, status, L, a, b, url, timestamp, useCount, *groups',
+db.version(3).stores({
+  photos: '++id, status, L, a, b, url, timestamp, useCount, name, size, *groups',
   mosaicPieces: 'id, artworkId, xIndex, yIndex, targetL, targetA, targetB, state, assignedPhotoId',
   groups: 'id, name, isDefault, timestamp',
   artworks: '++id, name, status, width, height, piecesCount, thumbDataUrl, targetGroupId, timestamp'
 }).upgrade(tx => {
-  return tx.photos.toCollection().modify(photo => {
-    photo.groups = ['all'];
-  });
+  // Existing data doesn't have name/size, but we can't easily backfill from Blobs in upgrade
+  // Just leave them undefined for old records.
 });
 
 // Fetch only fully processed photos for the KD-Tree index, optionally filtered by group
@@ -74,11 +73,19 @@ export async function addRawPhoto(file, targetGroups = ['all']) {
   const groupsToAssign = Array.from(new Set(['all', ...targetGroups]));
   return await db.photos.add({
     file,           // store the original File or Blob
+    name: file.name,
+    size: file.size,
     status: 'pending',
     timestamp: Date.now(),
     useCount: 0,
     groups: groupsToAssign
   });
+}
+
+// Check if a photo with the same name and size exists
+export async function checkDuplicatePhoto(name, size) {
+  const existing = await db.photos.where({ name: name, size: size }).first();
+  return !!existing;
 }
 
 // Update a raw photo with its processed LAB and miniature dataURL

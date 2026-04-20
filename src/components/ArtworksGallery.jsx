@@ -7,6 +7,11 @@ export default function ArtworksGallery({ onNewArtwork, onOpenArtwork }) {
   const artworks = useLiveQuery(() => db.artworks.orderBy('timestamp').reverse().toArray()) || [];
   const groups = useLiveQuery(() => db.groups.toArray()) || [];
 
+  const [settings, setSettings] = useState({
+    maxRepeat: 3,
+    exclusionRadius: 2
+  });
+
   const blueprintInputRef = useRef(null);
 
   const handleUploadClick = () => {
@@ -17,18 +22,26 @@ export default function ArtworksGallery({ onNewArtwork, onOpenArtwork }) {
     const file = e.target.files[0];
     if(!file) return;
 
-    // We can show a prompt to ask which group to use
+    // Prompt for group
     let targetGroupId = 'all';
     if(groups.length > 1) {
        const groupNames = groups.map(g => `${g.name} (${g.id})`).join('\n');
        const ans = prompt(`此畫作要綁定哪個素材相簿？ (預設為 全部素材: all)\n${groupNames}`, 'all');
-       if(ans) {
-           const targetG = groups.find(g => g.name.includes(ans) || g.id === ans);
-           if(targetG) targetGroupId = targetG.id;
-       }
+       if(ans === null) return; // User cancelled
+       const targetG = groups.find(g => g.name.includes(ans) || g.id === ans);
+       if(targetG) targetGroupId = targetG.id;
     }
 
-    onNewArtwork(file, targetGroupId);
+    // Prompt for complexity settings
+    const repeatAns = prompt('每個素材最多重複幾次？ (預設 3 次)', settings.maxRepeat);
+    const radiusAns = prompt('多少格子範圍內不可出現重複素材？ (預設 2 格)', settings.exclusionRadius);
+    
+    const finalSettings = {
+        maxRepeat: repeatAns !== null ? parseInt(repeatAns, 10) : settings.maxRepeat,
+        exclusionRadius: radiusAns !== null ? parseInt(radiusAns, 10) : settings.exclusionRadius
+    };
+
+    onNewArtwork(file, targetGroupId, finalSettings);
   };
 
   const handleDeleteArtwork = async (e, id) => {
